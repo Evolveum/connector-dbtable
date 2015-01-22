@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2014 Evolveum
+ * Copyright (c) 2015 Evolveum
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,18 +16,31 @@
 
 package com.evolveum.polygon.connector.dbtable;
 
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
 import org.identityconnectors.common.logging.Log;
+import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
+import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
+import org.identityconnectors.framework.common.objects.Schema;
+import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.Connector;
 import org.identityconnectors.framework.spi.ConnectorClass;
+import org.identityconnectors.framework.spi.PoolableConnector;
+import org.identityconnectors.framework.spi.operations.SchemaOp;
+import org.identityconnectors.framework.spi.operations.TestOp;
 
 @ConnectorClass(displayNameKey = "dbtable.connector.display", configurationClass = DbTableConfiguration.class)
-public class DbTableConnector implements Connector {
+public class DbTableConnector implements PoolableConnector, TestOp, SchemaOp {
 
     private static final Log LOG = Log.getLog(DbTableConnector.class);
 
     private DbTableConfiguration configuration;
     private DbTableConnection connection;
+    private TableStructureRegistry tableStructureRegistry = null;
 
     @Override
     public Configuration getConfiguration() {
@@ -44,8 +57,28 @@ public class DbTableConnector implements Connector {
     public void dispose() {
         configuration = null;
         if (connection != null) {
-            connection.dispose();
+            connection.close();
             connection = null;
         }
     }
+
+	@Override
+	public void test() {
+		connection.connect();
+		connection.checkAlive();
+		connection.close();
+	}
+    	
+	@Override
+	public Schema schema() {
+		connection.init();
+		tableStructureRegistry = new TableStructureRegistry();
+		Schema schema = tableStructureRegistry.parse(connection);
+		return schema;
+	}
+
+	@Override
+	public void checkAlive() {
+		connection.checkAlive();
+	}
 }
